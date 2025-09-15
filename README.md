@@ -1,4 +1,5 @@
 # Infinite Lagrange Fleet Detector (v1)
+<img width="1376" height="830" alt="image" src="https://github.com/user-attachments/assets/62244497-6cca-49ff-acd5-802be40fcdac" />
 
 This is a minimal Python+Flask app that detects fleets in Infinite Lagrange game. 
 I only wrote small scripts before and whole this shit is coded using ChatGPT and made just for lulz to prove that everything can be done with AI novadays.
