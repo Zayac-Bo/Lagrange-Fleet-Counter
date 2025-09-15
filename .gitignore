@@ -7,7 +7,8 @@ __pycache__/
 runs/
 weights/*.pt  # optional: only commit best.pt if you want
 dataset/      # optional: if your dataset is large
-
+outputs/
+uploads/
 # OS / system files
 *.DS_Store
 *.log

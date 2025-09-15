@@ -1,51 +1,78 @@
-from flask import Flask, request, render_template, send_from_directory, url_for
+from flask import Flask, request, render_template, send_from_directory
 import os
-from werkzeug.utils import secure_filename
-from detector import Detector
+import glob
+from detector import FleetDetector
 
-UPLOAD_FOLDER = 'uploads'
-OUTPUT_FOLDER = 'outputs'
-ALLOWED_EXT = {'png','jpg','jpeg'}
+# --------------------------
+# Configuration
+# --------------------------
+
+UPLOAD_FOLDER = "uploads"
+OUTPUT_FOLDER = "outputs"
+ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg"}
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-app.config['OUTPUT_FOLDER'] = OUTPUT_FOLDER
+detector = FleetDetector(n_clusters=3)  # auto color detection + naming
 
-detector = Detector()  # picks YOLO if weights available else template fallback
+app = Flask(__name__)
+app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
+app.config["OUTPUT_FOLDER"] = OUTPUT_FOLDER
+
+# --------------------------
+# Helpers
+# --------------------------
 
 def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.',1)[1].lower() in ALLOWED_EXT
+    return "." in filename and filename.rsplit(".",1)[1].lower() in ALLOWED_EXTENSIONS
 
-@app.route('/', methods=['GET'])
+def clear_folders():
+    """Remove all files in uploads/ and outputs/"""
+    for folder in [UPLOAD_FOLDER, OUTPUT_FOLDER]:
+        files = glob.glob(f"{folder}/*")
+        for f in files:
+            os.remove(f)
+
+# --------------------------
+# Routes
+# --------------------------
+
+@app.route("/", methods=["GET", "POST"])
 def index():
-    return render_template('index.html')
+    counts = {}
+    annotated_filename = None
 
-@app.route('/upload', methods=['POST'])
-def upload():
-    if 'file' not in request.files:
-        return 'No file part', 400
-    file = request.files['file']
-    if file.filename == '':
-        return 'No selected file', 400
-    if file and allowed_file(file.filename):
-        filename = secure_filename(file.filename)
-        path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(path)
-        detections, annotated_path, counts = detector.process_image(path, os.path.join(app.config['OUTPUT_FOLDER'], filename))
-        return render_template('result.html', counts=counts, annotated_image=url_for('output_file', filename=os.path.basename(annotated_path)), orig_image=url_for('upload_file', filename=filename))
-    return 'Invalid file', 400
+    if request.method == "POST":
+        # Clear old files
+        clear_folders()
 
-@app.route('/uploads/<filename>')
-def upload_file(filename):
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+        if "file" not in request.files:
+            return "No file part"
+        file = request.files["file"]
+        if file.filename == "":
+            return "No selected file"
+        if file and allowed_file(file.filename):
+            filepath = os.path.join(app.config["UPLOAD_FOLDER"], file.filename)
+            file.save(filepath)
 
-@app.route('/outputs/<filename>')
+            # Detect fleets and cluster colors
+            img, detections = detector.detect(filepath)
+            counts = detector.count_colors(detections)  # now uses color names
+
+            # Save annotated image
+            annotated_filename = f"annotated_{file.filename}"
+            output_path = os.path.join(app.config["OUTPUT_FOLDER"], annotated_filename)
+            detector.save_annotated(img, detections, output_path)
+
+    return render_template("index.html", counts=counts, annotated=annotated_filename)
+
+@app.route("/outputs/<filename>")
 def output_file(filename):
-    return send_from_directory(app.config['OUTPUT_FOLDER'], filename)
+    return send_from_directory(app.config["OUTPUT_FOLDER"], filename)
 
-if __name__ == '__main__':
-    # For production consider gunicorn + reverse proxy. This simple server is enough for testing.
-    app.run(host='0.0.0.0', port=5000)
+# --------------------------
+# Run
+# --------------------------
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=True)

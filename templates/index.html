@@ -1,16 +1,28 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8">
+  <meta charset="UTF-8">
   <title>Infinite Lagrange Fleet Detector</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-  <h1>Infinite Lagrange Fleet Detector — v1</h1>
-  <form action="{{ url_for('upload') }}" method="post" enctype="multipart/form-data">
-    <input type="file" name="file" accept="image/png, image/jpeg" required>
-    <button type="submit">Upload & Detect</button>
+  <h1>Upload Fleet Screenshot</h1>
+  <form method="post" enctype="multipart/form-data">
+    <input type="file" name="file" required>
+    <input type="submit" value="Upload & Detect">
   </form>
-  <p>Put trained ultralytics weights in <code>weights/best.pt</code> to use YOLO inference. Otherwise the fallback template detector is used.</p>
+
+  {% if counts %}
+    <h2>Detected Fleets by Color:</h2>
+    <ul>
+    {% for color, count in counts.items() %}
+      <li>{{ color.capitalize() }}: {{ count }}</li>
+    {% endfor %}
+    </ul>
+  {% endif %}
+
+  {% if annotated %}
+    <h2>Annotated Image:</h2>
+    <img src="{{ url_for('output_file', filename=annotated) }}" alt="Annotated">
+  {% endif %}
 </body>
 </html>
