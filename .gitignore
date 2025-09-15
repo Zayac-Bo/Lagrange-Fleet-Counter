@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# YOLO / Ultralytics outputs
+runs/
+weights/*.pt  # optional: only commit best.pt if you want
+dataset/      # optional: if your dataset is large
+
+# OS / system files
+*.DS_Store
+*.log
