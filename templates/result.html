@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Fleet Detection Result</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            background-color: #f0f0f0; 
+            margin: 0; 
+            padding: 20px; 
+            color: #333;
+        }
+        h1 { text-align: center; }
+        .images { 
+            display: flex; 
+            justify-content: center; 
+            gap: 20px; 
+            margin-top: 20px;
+        }
+        .images div { 
+            text-align: center; 
+        }
+        .images img { 
+            max-width: 600px; 
+            border: 2px solid #333; 
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .images img:hover { transform: scale(1.02); }
+
+        /* Lightbox overlay */
+        .lightbox {
+            display: none;
+            position: fixed;
+            z-index: 999;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0,0,0,0.9);
+            justify-content: center; align-items: center;
+        }
+        .lightbox img {
+            max-width: 95%;
+            max-height: 95%;
+            border-radius: 8px;
+        }
+        .lightbox:target { display: flex; }
+
+        .counts { 
+            margin-top: 30px; 
+            display: flex; 
+            justify-content: center;
+        }
+        table { 
+            border-collapse: collapse; 
+            background-color: #fff;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        th, td { 
+            padding: 12px 20px; 
+            border: 1px solid #ccc; 
+            text-align: center;
+        }
+        th { 
+            background-color: #e0e0e0; 
+        }
+        a.back-link { 
+            display: inline-block; 
+            margin-top: 20px; 
+            text-decoration: none; 
+            color: #007bff; 
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fleet Detection Result</h1>
+
+    <div class="images">
+        <div>
+            <h3>Original</h3>
+            <a href="#original-lightbox">
+                <img src="{{ original_image_url }}" alt="Original Image">
+            </a>
+            <div id="original-lightbox" class="lightbox">
+                <a href="#"><img src="{{ original_image_url }}"></a>
+            </div>
+        </div>
+        <div>
+            <h3>Processed</h3>
+            <a href="#processed-lightbox">
+                <img src="{{ processed_image_url }}" alt="Processed Image">
+            </a>
+            <div id="processed-lightbox" class="lightbox">
+                <a href="#"><img src="{{ processed_image_url }}"></a>
+            </div>
+        </div>
+    </div>
+
+    <div class="counts">
+        <table>
+            <thead>
+                <tr>
+                    <th>Color</th>
+                    <th>Count</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for color, count in fleet_counts.items() %}
+                <tr>
+                    <td>{{ color }}</td>
+                    <td>{{ count }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div style="text-align:center; margin-top:20px;">
+        <a class="back-link" href="/">Upload Another Image</a>
+    </div>
+</body>
+</html>

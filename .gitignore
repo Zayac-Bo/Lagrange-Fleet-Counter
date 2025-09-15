@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.swp
+
+# Virtual environment
+.venv/
+venv/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# PyCharm / VSCode
+.idea/
+.vscode/
+
+# Dataset outputs / runs / logs
+runs/
+*.log
+*.tmp
+
+# Images / temporary data you don't want to push
+dataset/images/val/
+dataset/images/train/  # optional, only if you don't want full images tracked
+dataset/labels/train.cache
+dataset/labels/val.cache
+
+# Weights
+weights/*.pt   # optional: if you want to track only best.pt, keep that one, ignore others

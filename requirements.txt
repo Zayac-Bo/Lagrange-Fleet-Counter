@@ -1,0 +1,6 @@
+flask==2.2.5
+opencv-python-headless==4.8.0.74
+numpy==1.25.2
+pillow==10.0.0
+# Optional for better detection/training (heavy): ultralytics
+# ultralytics
