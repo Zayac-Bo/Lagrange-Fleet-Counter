@@ -1,13 +1,23 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Fleet Detector</title>
+<meta charset="utf-8">
+<title>Fleet Detector — Upload</title>
+<style>
+  body { font-family: Arial, sans-serif; background:#f0f0f0; padding:30px; color:#222; }
+  .box { max-width:700px; margin:40px auto; background:#fff; padding:20px; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.06); text-align:center; }
+  input[type=file] { margin-top:10px; }
+  button { margin-top:14px; padding:10px 14px; background:#1976d2; color:#fff; border:none; border-radius:6px; cursor:pointer; }
+</style>
 </head>
 <body>
-    <h1>Upload Image</h1>
-    <form action="/" method="POST" enctype="multipart/form-data">
-        <input type="file" name="file" required>
-        <button type="submit">Detect Fleets</button>
+  <div class="box">
+    <h1>Infinite Lagrange — Fleet Detector</h1>
+    <p>Upload a screenshot (PNG/JPG). The app will detect fleets and color-classify them.</p>
+    <form method="POST" enctype="multipart/form-data">
+      <input type="file" name="file" accept="image/*" required><br>
+      <button type="submit">Upload & Detect</button>
     </form>
+  </div>
 </body>
 </html>
