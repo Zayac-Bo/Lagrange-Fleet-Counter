@@ -136,7 +136,7 @@ class FleetDetector:
         # build output image (we'll draw our own boxes/labels)
         try:
             base = r.plot()  # use YOLO plotting as base (optional), then redraw with palette colors
-            out_img = base.copy()
+            out_img = base.copy(show=False)
         except Exception:
             out_img = img.copy()
 
