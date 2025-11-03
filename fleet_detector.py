@@ -67,34 +67,53 @@ class FleetDetector:
 
     def _dominant_bright_color(self, crop_bgr):
         """
-        Compute a brightness-weighted dominant color:
+        Compute a brightness-weighted dominant color that covers at least 30% of the crop.
         - Convert crop to HSV
-        - Use V channel as weights (higher V => brighter pixels)
-        - Compute weighted average of RGB using those weights after converting BGR->RGB
+        - Use V channel as weights
+        - Skip colors that occupy <30% of the area
         Returns integer RGB tuple (R,G,B)
         """
         if crop_bgr is None or crop_bgr.size == 0:
-            return np.array([0,0,0], dtype=int)
+            return np.array([0, 0, 0], dtype=int)
 
-        # Convert to HSV (OpenCV uses BGR input)
-        hsv = cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2HSV).astype(float)
-        v = hsv[:, :, 2]  # 0..255 brightness
-        weights = v + 1e-6  # avoid zeros
+        hsv = cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2HSV)
+        h, s, v = cv2.split(hsv)
 
-        # Convert to RGB for consistency with palette (currently crop is BGR)
-        crop_rgb = cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2RGB).astype(float)
+        # flatten arrays
+        pixels = np.column_stack((h.flatten(), s.flatten(), v.flatten()))
+        brightness = v.flatten().astype(float)
 
-        # Weighted mean for each channel
-        wsum = weights.sum()
-        if wsum <= 0:
-            avg = crop_rgb.reshape(-1, 3).mean(axis=0)
-            return avg.astype(int)
+        # exclude very dark pixels
+        bright_mask = brightness > 40
+        pixels = pixels[bright_mask]
+        if len(pixels) == 0:
+            return np.array([0, 0, 0], dtype=int)
 
-        avg_r = (crop_rgb[:, :, 0] * weights).sum() / wsum
-        avg_g = (crop_rgb[:, :, 1] * weights).sum() / wsum
-        avg_b = (crop_rgb[:, :, 2] * weights).sum() / wsum
+        # cluster dominant hue values
+        hist, bins = np.histogram(pixels[:, 0], bins=36, range=(0, 180))
+        dominant_bin = np.argmax(hist)
+        dominant_ratio = hist[dominant_bin] / np.sum(hist)
 
-        return np.array([int(round(avg_r)), int(round(avg_g)), int(round(avg_b))], dtype=int)
+        # if dominant hue <30% → fallback to brightness-weighted mean
+        if dominant_ratio < 0.3:
+            crop_rgb = cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2RGB).astype(float)
+            weights = v.astype(float) + 1e-6
+            wsum = weights.sum()
+            avg_r = (crop_rgb[:, :, 0] * weights).sum() / wsum
+            avg_g = (crop_rgb[:, :, 1] * weights).sum() / wsum
+            avg_b = (crop_rgb[:, :, 2] * weights).sum() / wsum
+            return np.array([int(round(avg_r)), int(round(avg_g)), int(round(avg_b))], dtype=int)
+
+        # mask pixels within that dominant hue range
+        hue_min, hue_max = bins[dominant_bin], bins[min(dominant_bin + 1, len(bins) - 1)]
+        hue_mask = (h >= hue_min) & (h < hue_max)
+        crop_rgb = cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2RGB)
+        dom_rgb = crop_rgb[hue_mask]
+        if len(dom_rgb) == 0:
+            return np.array([0, 0, 0], dtype=int)
+
+        avg_rgb = np.mean(dom_rgb, axis=0)
+        return np.array([int(round(avg_rgb[0])), int(round(avg_rgb[1])), int(round(avg_rgb[2]))], dtype=int)
 
     def _match_palette(self, rgb):
         """Return (best_name, distance). Uses LAB perceptual distance."""
