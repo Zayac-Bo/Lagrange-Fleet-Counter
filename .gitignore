@@ -29,6 +29,7 @@ dataset/labels/train.cache
 dataset/labels/val.cache
 processed/
 output/
+uploads/
 
 # Weights
 weights/*.pt   # optional: if you want to track only best.pt, keep that one, ignore others
