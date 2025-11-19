@@ -1,47 +1,37 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Fleet Detection Result</title>
-<style>
-  body { font-family: Arial, sans-serif; background:#f0f0f0; color:#222; margin:0; padding:20px; }
-  h1 { text-align:center; margin-bottom:18px; }
-  .images { display:flex; justify-content:center; gap:16px; flex-wrap:wrap; margin-bottom:20px; }
-  .image-card { background:#fff; padding:12px; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,0.06); text-align:center; }
-  .image-card img { max-width:640px; border-radius:6px; border:2px solid #ddd; display:block; cursor:pointer; }
-  .image-title { font-weight:600; margin-top:8px; }
-  .lightbox { display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.9); align-items:center; justify-content:center; z-index:9999; }
-  .lightbox img { max-width:95%; max-height:95%; border-radius:6px; }
-  .lightbox:target { display:flex; }
-
-  .groups { max-width:1100px; margin: 10px auto 40px; display:flex; flex-direction:column; gap:14px; }
-  .group-card { background:#fff; padding:14px; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,0.06); }
-  .group-card h2 { margin:0 0 8px 0; font-size:18px; }
-  table { width:100%; border-collapse:collapse; }
-  th, td { padding:10px 12px; border-bottom:1px solid #eee; text-align:left; }
-  th { background:#fafafa; font-weight:700; }
-  .total-row { font-weight:700; background:#f9f9f9; }
-  .color-swatch { display:inline-block; width:16px; height:16px; border-radius:3px; margin-right:8px; vertical-align:middle; border:1px solid rgba(0,0,0,0.08); }
-
-  .back { text-align:center; margin-top:14px; }
-  .button { text-decoration:none; background:#1976d2; color:#fff; padding:8px 14px; border-radius:6px; }
-</style>
+  <meta charset="utf-8">
+  <title>Fleet Detection Result</title>
+  <style>
+    body { font-family: Arial, sans-serif; background:#f0f0f0; color:#222; margin:0; padding:20px; }
+    h1 { text-align:center; margin-bottom:18px; }
+    .images { display:flex; justify-content:center; gap:16px; flex-wrap:wrap; margin-bottom:20px; }
+    .image-card { background:#fff; padding:12px; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,0.06); text-align:center; }
+    .image-card img { max-width:640px; border-radius:6px; border:2px solid #ddd; display:block; cursor:pointer; }
+    .groups { max-width:1100px; margin: 10px auto 40px; display:flex; flex-direction:column; gap:14px; }
+    .group-card { background:#fff; padding:14px; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,0.06); }
+    table { width:100%; border-collapse:collapse; }
+    th, td { padding:10px 12px; border-bottom:1px solid #eee; text-align:left; }
+    th { background:#fafafa; font-weight:700; }
+    .total-row { font-weight:700; background:#f9f9f9; }
+    .color-swatch { display:inline-block; width:16px; height:16px; border-radius:3px; margin-right:8px; vertical-align:middle; border:1px solid rgba(0,0,0,0.08); }
+    .back { text-align:center; margin-top:14px; }
+    .button { text-decoration:none; background:#1976d2; color:#fff; padding:8px 14px; border-radius:6px; }
+  </style>
 </head>
 <body>
   <h1>Fleet Detection Result</h1>
 
   <div class="images">
     <div class="image-card">
-      <a href="#orig"><img src="{{ original_image_url }}" alt="Original"></a>
       <div class="image-title">Original</div>
-      <div id="orig" class="lightbox"><a href="#"><img src="{{ original_image_url }}"></a></div>
+      <img src="{{ original_image_url }}" alt="Original">
     </div>
 
     <div class="image-card">
-      <a href="#proc"><img src="{{ processed_image_url }}" alt="Processed"></a>
       <div class="image-title">Processed (annotated)</div>
-      <div id="proc" class="lightbox"><a href="#"><img src="{{ processed_image_url }}"></a></div>
+      <img src="{{ processed_image_url }}" alt="Processed">
     </div>
   </div>
 
@@ -73,6 +63,6 @@
     {% endfor %}
   </div>
 
-  <div class="back"><a class="button" href="/">Upload Another Image?</a></div>
+  <div class="back"><a class="button" href="/">Upload Another File</a></div>
 </body>
 </html>
