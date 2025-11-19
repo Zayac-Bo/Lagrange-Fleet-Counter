@@ -1,25 +1,165 @@
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html>
 <head>
-  <meta charset="utf-8">
-  <title>Fleet Detector — Upload</title>
-  <style>
-    body { font-family: Arial, sans-serif; background:#f0f0f0; padding:30px; color:#222; }
-    .box { max-width:700px; margin:40px auto; background:#fff; padding:20px; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.06); text-align:center; }
-    input[type=file] { margin-top:10px; }
-    button { margin-top:14px; padding:10px 14px; background:#1976d2; color:#fff; border:none; border-radius:6px; cursor:pointer; }
-    .hint { font-size:0.9em; color:#666; margin-top:8px; }
-  </style>
+    <meta charset="UTF-8">
+    <title>Lagrange Fleet Counter</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f0f0f0;
+            padding: 30px;
+            color: #222;
+        }
+
+        .container {
+            max-width: 750px;
+            margin: 40px auto;
+            text-align: center;
+        }
+
+        .box {
+            background: #fff;
+            padding: 25px 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            border: 1px solid #e0e0e0;
+        }
+
+        h2 {
+            margin-top: 0;
+            color: #1976d2;
+        }
+
+        .description {
+            font-size: 0.95em;
+            color: #555;
+            margin-bottom: 20px;
+        }
+
+        input[type=file] {
+            margin-top: 10px;
+        }
+
+        button {
+            margin-top: 14px;
+            padding: 10px 16px;
+            background: #1976d2;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        button:hover {
+            background: #1565c0;
+        }
+
+        .hint {
+            font-size: 0.9em;
+            color: #666;
+            margin-top: 8px;
+        }
+
+        /* Dropzone */
+        #dropzone {
+            margin-top: 20px;
+            border: 2px dashed #aaa;
+            padding: 40px;
+            border-radius: 10px;
+            background: #fafafa;
+            transition: 0.2s;
+            cursor: pointer;
+        }
+
+        #dropzone.hover {
+            background: #e9f0fc;
+            border-color: #1976d2;
+        }
+
+    </style>
 </head>
 <body>
-  <div class="box">
-    <h1>Infinite Lagrange — Fleet Detector</h1>
-    <p>Upload a screenshot or a video file. Supported images: PNG/JPG. Supported videos: MP4/MOV/AVI.</p>
-    <form method="POST" enctype="multipart/form-data">
-      <input type="file" name="file" accept="image/*,video/*" required><br>
-      <button type="submit">Upload & Process</button>
-    </form>
-    <div class="hint">Tip: videos are processed frame-by-frame on the server (can be slow on CPU-only VPS).</div>
-  </div>
+
+<div class="container">
+    <div class="box">
+        <h2>Lagrange Fleet Counter</h2>
+        <div class="description">
+            This is a minimal Python+Flask app that detects fleets in Infinite Lagrange and classifies them by color.
+        </div>
+
+        <form id="uploadForm" action="/" method="POST" enctype="multipart/form-data">
+            <input type="file" id="fileInput" name="file" accept="image/*,video/*">
+            <br>
+            <button type="submit">Upload</button>
+        </form>
+
+        <div class="hint">You can paste a screenshot (Ctrl+V) or drag files into the box below.</div>
+
+        <div id="dropzone">Click, paste, or drag image/video here</div>
+    </div>
+</div>
+
+<script>
+// Make dropzone clickable
+document.getElementById("dropzone").addEventListener("click", () => {
+    document.getElementById("fileInput").click();
+});
+
+// Drag & drop highlight
+document.addEventListener("dragover", e => {
+    e.preventDefault();
+    document.getElementById("dropzone").classList.add("hover");
+});
+document.addEventListener("dragleave", e => {
+    document.getElementById("dropzone").classList.remove("hover");
+});
+
+// Accept dropped files
+document.addEventListener("drop", e => {
+    e.preventDefault();
+    document.getElementById("dropzone").classList.remove("hover");
+
+    const dt = new DataTransfer();
+    for (const file of e.dataTransfer.files) dt.items.add(file);
+
+    document.getElementById("fileInput").files = dt.files;
+    document.getElementById("uploadForm").submit();
+});
+
+// ========================
+//  PASTE IMAGE HANDLER
+// ========================
+document.addEventListener("paste", async (event) => {
+    const items = event.clipboardData.items;
+    if (!items) return;
+
+    for (const item of items) {
+        if (item.type.startsWith("image/")) {
+
+            const blob = item.getAsFile();
+
+            // Generate filename
+            const ext = item.type.split("/")[1] || "png";
+            const filename = "clipboard_" + Date.now() + "." + ext;
+
+            // Convert Blob → File
+            const file = new File([blob], filename, { type: item.type });
+
+            // Inject into file input
+            const dt = new DataTransfer();
+            dt.items.add(file);
+            document.getElementById("fileInput").files = dt.files;
+
+            // Submit
+            document.getElementById("uploadForm").submit();
+
+            return;
+        }
+    }
+});
+</script>
+
 </body>
 </html>

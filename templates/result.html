@@ -8,7 +8,11 @@
     h1 { text-align:center; margin-bottom:18px; }
     .images { display:flex; justify-content:center; gap:16px; flex-wrap:wrap; margin-bottom:20px; }
     .image-card { background:#fff; padding:12px; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,0.06); text-align:center; }
-    .image-card img { max-width:640px; border-radius:6px; border:2px solid #ddd; display:block; cursor:pointer; }
+    .image-card img { max-width:640px; border-radius:6px; border:2px solid #ddd; display:block; cursor:pointer; transition: all 0.3s ease; }
+    .image-card img.zoomed { 
+        position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+        max-width: 95vw; max-height: 95vh; z-index: 9999; border: 2px solid #1976d2; box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
     .groups { max-width:1100px; margin: 10px auto 40px; display:flex; flex-direction:column; gap:14px; }
     .group-card { background:#fff; padding:14px; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,0.06); }
     table { width:100%; border-collapse:collapse; }
@@ -26,12 +30,12 @@
   <div class="images">
     <div class="image-card">
       <div class="image-title">Original</div>
-      <img src="{{ original_image_url }}" alt="Original">
+      <img src="{{ original_image_url }}" alt="Original" class="clickable-image">
     </div>
 
     <div class="image-card">
       <div class="image-title">Processed (annotated)</div>
-      <img src="{{ processed_image_url }}" alt="Processed">
+      <img src="{{ processed_image_url }}" alt="Processed" class="clickable-image">
     </div>
   </div>
 
@@ -64,5 +68,22 @@
   </div>
 
   <div class="back"><a class="button" href="/">Upload Another File</a></div>
+
+  <script>
+    // Click-to-zoom functionality
+    document.querySelectorAll(".clickable-image").forEach(img => {
+        img.addEventListener("click", () => {
+            img.classList.toggle("zoomed");
+        });
+    });
+
+    // Optional: click outside to close zoom
+    document.addEventListener("click", e => {
+        if (!e.target.classList.contains("clickable-image")) {
+            document.querySelectorAll(".clickable-image.zoomed").forEach(img => img.classList.remove("zoomed"));
+        }
+    });
+  </script>
+
 </body>
 </html>
