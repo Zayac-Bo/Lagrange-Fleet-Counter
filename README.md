@@ -1,12 +1,14 @@
-# Infinite Lagrange Fleet Detector (v1)
-<img width="1376" height="830" alt="image" src="https://github.com/user-attachments/assets/62244497-6cca-49ff-acd5-802be40fcdac" />
+# Infinite Lagrange Fleet Detector (v0.4b)
+
+<img width="1414" height="759" alt="image" src="https://github.com/user-attachments/assets/18d05db8-e74b-4659-acdb-eb88d969ebc7" />
+
 
 This is a minimal Python+Flask app that detects fleets in Infinite Lagrange game. 
 I only wrote small scripts before and whole this app is coded using ChatGPT and made just for my ingame Org to make fast fleet counting easier and prove that everything can be done with AI novadays.
 At the moment i am busy training the model to improve detection quality.
 
 Features:
-- Web UI: upload PNG/JPG screenshots and get back counts per color and an annotated image.
+- Web UI: upload PNG/JPG screenshots or MP4/MOV/AVI videos and get back counts per color and an annotated result.
 - **Ultralytics YOLO (recommended if you have trained weights)**: place `weights/best.pt` and the app will use `ultralytics` for inference.
 ## Quick start
 1. Create a Python3 venv and activate:
@@ -23,7 +25,7 @@ Features:
    ```bash
    python app.py
    ```
-   Open `http://server-ip:5000/` and upload a screenshot.
+   Open `http://server-ip:5000/` and upload a file.
 
 ## Training YOLO (high level)
 - train a small **yolov8n** model:
