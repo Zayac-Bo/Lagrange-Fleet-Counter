@@ -27,6 +27,10 @@ Features:
    ```
    Open `http://server-ip:5000/` and upload a file.
 
+Annotated video encoding to H264 realised via ffmpeg:
+   ```bash
+   sudo apt install ffmpeg
+   ```
 ## Training YOLO (high level)
 - train a small **yolov8n** model:
   ```bash
