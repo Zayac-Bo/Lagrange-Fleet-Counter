@@ -4,6 +4,7 @@ import uuid
 from flask import Flask, render_template, request, url_for, send_from_directory, redirect
 from werkzeug.utils import secure_filename
 from fleet_detector import FleetDetector, PALETTE_RGB
+import cv2
 
 ALLOWED_IMG = {'.png', '.jpg', '.jpeg', '.bmp', '.tiff'}
 ALLOWED_VID = {'.mp4', '.mov', '.avi', '.mkv', '.webm'}
@@ -51,23 +52,49 @@ def index():
         # decide image or video
         if ext in ALLOWED_IMG:
             # image flow
-            processed_basename, grouped_summary, detections = fleet_detector.detect_and_annotate(saved_path, conf=0.25)
+            processed_basename, grouped_summary, detections = fleet_detector.detect_and_annotate(
+                saved_path, conf=0.25
+            )
             processed_url = url_for("output_image", filename=processed_basename)
             original_url = url_for("uploaded_file", filename=saved_name)
-            return render_template("result.html",
-                                   original_image_url=original_url,
-                                   processed_image_url=processed_url,
-                                   fleet_counts=grouped_summary)
+            return render_template(
+                "result.html",
+                original_image_url=original_url,
+                processed_image_url=processed_url,
+                fleet_counts=grouped_summary
+            )
+
         elif ext in ALLOWED_VID:
+
+            # ---------------------------------------------------
+            # NEW: Limit video duration to 30 seconds
+            # ---------------------------------------------------
+            cap = cv2.VideoCapture(saved_path)
+            if not cap.isOpened():
+                return "Cannot open video", 400
+
+            fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
+            frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+            duration = frames / fps
+            cap.release()
+
+            if duration > 30.0:
+                return "Video is longer than 30 seconds", 400
+            # ---------------------------------------------------
+
             # video flow - process and redirect to video result
-            # optional: downscale to width 960 to save CPU (comment out if you want full res)
-            processed_vid_name, grouped_summary, max_frame_idx, max_total = fleet_detector.process_video(saved_path, conf=0.25, downscale_width=None)
+            processed_vid_name, grouped_summary, max_frame_idx, max_total = fleet_detector.process_video(
+                saved_path, conf=0.25, downscale_width=None
+            )
             video_url = url_for("output_video", filename=processed_vid_name)
-            return render_template("video_result.html",
-                                   processed_video_url=video_url,
-                                   fleet_counts=grouped_summary,
-                                   max_frame_idx=max_frame_idx,
-                                   max_total=max_total)
+            return render_template(
+                "video_result.html",
+                processed_video_url=video_url,
+                fleet_counts=grouped_summary,
+                max_frame_idx=max_frame_idx,
+                max_total=max_total
+            )
+
         else:
             return "Unsupported file type", 400
 

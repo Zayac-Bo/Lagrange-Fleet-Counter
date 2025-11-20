@@ -2,9 +2,10 @@
 import os
 import cv2
 import numpy as np
-from collections import Counter, OrderedDict, defaultdict
+from collections import Counter, OrderedDict
 from ultralytics import YOLO
 from datetime import datetime
+import subprocess
 
 # === Palette (RGB) ===
 PALETTE_RGB = OrderedDict([
@@ -35,7 +36,6 @@ GROUPS = OrderedDict([
 LAB_DISTANCE_THRESHOLD = 25.0
 
 def _rgb_to_bgr(rgb):
-    # rgb (R, G, B) -> cv2 BGR tuple
     return (int(rgb[2]), int(rgb[1]), int(rgb[0]))
 
 def _rgb_to_lab(rgb):
@@ -60,45 +60,30 @@ class FleetDetector:
         os.makedirs(self.img_out, exist_ok=True)
         os.makedirs(self.video_out, exist_ok=True)
 
-    # --- dominant color with 30% bright-region requirement (robust) ---
     def _dominant_bright_color(self, crop_bgr):
-        """
-        Return RGB tuple (R,G,B). Use top-30%-bright pixels mean if they cover >=30% of crop,
-        otherwise fallback to brightness-weighted mean.
-        """
         if crop_bgr is None or crop_bgr.size == 0:
             return np.array([0,0,0], dtype=int)
-
-        # convert to HSV and RGB
         hsv = cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2HSV).astype(float)
-        v = hsv[:, :, 2].flatten()  # brightness
+        v = hsv[:, :, 2].flatten()
         crop_rgb = cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2RGB).astype(float)
         flat_rgb = crop_rgb.reshape(-1, 3)
-
         total_pixels = flat_rgb.shape[0]
         if total_pixels == 0:
             return np.array([0,0,0], dtype=int)
-
-        # threshold for top 30% brightest
-        thresh = np.percentile(v, 70)  # 70th percentile -> top 30%
+        thresh = np.percentile(v, 70)
         bright_mask = v >= thresh
         bright_count = np.count_nonzero(bright_mask)
         bright_ratio = bright_count / float(total_pixels)
-
         if bright_count > 0 and bright_ratio >= 0.30:
-            # use mean of bright pixels
             bright_pixels = flat_rgb[bright_mask]
             mean_rgb = bright_pixels.mean(axis=0)
             return np.array([int(round(x)) for x in mean_rgb], dtype=int)
         else:
-            # fallback: brightness-weighted mean across all pixels
             w = v.reshape(-1, 1) + 1e-6
             weighted = (flat_rgb * w).sum(axis=0) / w.sum()
             return np.array([int(round(x)) for x in weighted], dtype=int)
 
     def _match_palette(self, rgb):
-        """Return (best_name, distance) using LAB distance; if distance > threshold return Other"""
-        # ensure rgb is iterable of 3 ints
         lab = _rgb_to_lab(tuple(int(x) for x in rgb))
         best_name = "Other"
         best_dist = float("inf")
@@ -111,46 +96,28 @@ class FleetDetector:
             return best_name, float(best_dist)
         return "Other", float(best_dist)
 
-    # --- image processing (unchanged public API) ---
     def detect_and_annotate(self, image_path, conf=0.25):
-        """
-        Process single image:
-        returns (processed_basename, grouped_summary, detections_list)
-        processed_basename is filename placed into self.img_out (basename only)
-        grouped_summary: OrderedDict as before (only non-empty groups)
-        detections_list: list of dicts with box, color, distance, dominant_rgb
-        """
         img = cv2.imread(image_path)
         if img is None:
             raise ValueError(f"Could not load image: {image_path}")
-
-        # run inference (no plotting)
         results = self.model(img, conf=conf)
         r = results[0]
-
-        # start with original (do not use r.plot())
         out_img = img.copy()
-
-        # boxes
         try:
             boxes = r.boxes.xyxy.cpu().numpy()
         except Exception:
             boxes = np.array([])
-
         counts = Counter()
         detections = []
-
         for box in boxes:
             x1, y1, x2, y2 = map(int, box)
             x1 = max(0, x1); y1 = max(0, y1)
             x2 = min(img.shape[1]-1, x2); y2 = min(img.shape[0]-1, y2)
             if x2 <= x1 or y2 <= y1:
                 continue
-
             crop = img[y1:y2, x1:x2]
             dom_rgb = self._dominant_bright_color(crop)
             color_name, dist = self._match_palette(dom_rgb)
-
             counts[color_name] += 1
             detections.append({
                 "box": (x1, y1, x2, y2),
@@ -158,16 +125,12 @@ class FleetDetector:
                 "distance": dist,
                 "dominant_rgb": tuple(int(x) for x in dom_rgb.tolist())
             })
-
-            # draw rectangle & label with palette color (BGR)
-            draw_col = PALETTE_BGR.get(color_name, (200, 200, 200))
+            draw_col = PALETTE_BGR.get(color_name, (200,200,200))
             cv2.rectangle(out_img, (x1, y1), (x2, y2), draw_col, 2)
             label = color_name
             (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.45, 1)
             cv2.rectangle(out_img, (x1, y1 - 18), (x1 + tw + 6, y1), draw_col, -1)
             cv2.putText(out_img, label, (x1 + 3, y1 - 4), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255,255,255), 1, cv2.LINE_AA)
-
-        # grouped summary
         grouped = OrderedDict()
         for gname, members in GROUPS.items():
             group_counts = {}
@@ -180,29 +143,16 @@ class FleetDetector:
             if total > 0:
                 group_counts["TOTAL"] = int(total)
                 grouped[gname] = group_counts
-
         other_cnt = counts.get("Other", 0)
         if other_cnt > 0:
             grouped["Other"] = {"Other": int(other_cnt), "TOTAL": int(other_cnt)}
-
-        # save annotated image
         basename = os.path.basename(image_path)
         out_name = f"processed_{basename}"
         out_path = os.path.join(self.img_out, out_name)
         cv2.imwrite(out_path, out_img)
-
         return out_name, grouped, detections
 
-    # --- new: video processing ---
     def process_video(self, video_path, conf=0.25, downscale_width=None):
-        """
-        Process a video frame-by-frame, annotate frames with our custom rectangles/labels,
-        save processed video into self.video_out and return:
-          (processed_filename, grouped_summary_for_max_frame, frame_index_of_max, max_counts_per_color)
-        grouped_summary_for_max_frame will be OrderedDict same as image case.
-        max_counts_per_color is dict mapping color_name->count for the frame with maximum total fleets.
-        """
-
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
             raise ValueError("Cannot open video: " + video_path)
@@ -210,8 +160,10 @@ class FleetDetector:
         fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
         w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        max_frames_allowed = int(fps * 30)  # max 30 seconds
+        frame_count = min(frame_count, max_frames_allowed)
 
-        # optional downscale to save CPU
         if downscale_width and downscale_width < w:
             scale = downscale_width / float(w)
             out_w = downscale_width
@@ -219,84 +171,72 @@ class FleetDetector:
         else:
             out_w, out_h = w, h
 
-        # output file
         basename = os.path.basename(video_path)
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        out_filename = f"processed_{ts}_{basename}"
-        out_path = os.path.join(self.video_out, out_filename)
-
-        # VideoWriter (mp4v)
-        fourcc = cv2.VideoWriter_fourcc(*"H264")
-        writer = cv2.VideoWriter(out_path, fourcc, fps, (out_w, out_h))
+        temp_avi = os.path.join(self.video_out, f"temp_{ts}.avi")
+        writer = cv2.VideoWriter(temp_avi, cv2.VideoWriter_fourcc(*'MJPG'), fps, (out_w, out_h))
 
         max_total = -1
         max_frame_idx = -1
-        max_counts = None  # dict color->count for that frame
+        max_counts = None
         frame_idx = 0
 
-        # iterate frames
-        while True:
+        while frame_idx < frame_count:
             ret, frame = cap.read()
             if not ret:
                 break
-
             frame_idx += 1
-
-            # optionally resize frame (keep aspect)
             if (out_w, out_h) != (w, h):
                 frame_proc = cv2.resize(frame, (out_w, out_h), interpolation=cv2.INTER_LINEAR)
             else:
                 frame_proc = frame.copy()
-
-            # run inference on frame (returns list-like)
             results = self.model(frame_proc, conf=conf)
             r = results[0]
             try:
                 boxes = r.boxes.xyxy.cpu().numpy()
             except Exception:
                 boxes = np.array([])
-
-            # per-frame color counts
             per_frame_counts = Counter()
-            # annotate frame_proc
             for box in boxes:
                 x1, y1, x2, y2 = map(int, box)
                 x1 = max(0, x1); y1 = max(0, y1)
                 x2 = min(frame_proc.shape[1]-1, x2); y2 = min(frame_proc.shape[0]-1, y2)
                 if x2 <= x1 or y2 <= y1:
                     continue
-
                 crop = frame_proc[y1:y2, x1:x2]
                 dom_rgb = self._dominant_bright_color(crop)
                 color_name, dist = self._match_palette(dom_rgb)
                 per_frame_counts[color_name] += 1
-
                 draw_col = PALETTE_BGR.get(color_name, (200,200,200))
                 cv2.rectangle(frame_proc, (x1, y1), (x2, y2), draw_col, 2)
                 label = color_name
                 (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.45, 1)
                 cv2.rectangle(frame_proc, (x1, y1 - 18), (x1 + tw + 6, y1), draw_col, -1)
                 cv2.putText(frame_proc, label, (x1 + 3, y1 - 4), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255,255,255), 1, cv2.LINE_AA)
-
             total_here = sum(per_frame_counts.values())
-            # update max frame info
             if total_here > max_total:
                 max_total = total_here
                 max_frame_idx = frame_idx
-                # store counts mapping color->count for this frame
                 max_counts = dict(per_frame_counts)
-
-            # write frame
             writer.write(frame_proc)
 
         writer.release()
         cap.release()
 
-        # build grouped summary based on max_counts
+        # convert MJPG AVI -> H264 MP4 using ffmpeg
+        final_mp4 = os.path.join(self.video_out, f"processed_{ts}_{basename}.mp4")
+        cmd = [
+            "ffmpeg", "-y", "-i", temp_avi,
+            "-c:v", "libx264", "-pix_fmt", "yuv420p",
+            final_mp4
+        ]
+        subprocess.run(cmd, check=True)
+        os.remove(temp_avi)
+
+        # grouped summary
         grouped = OrderedDict()
         if max_counts is None:
             max_counts = {}
-
         for gname, members in GROUPS.items():
             group_counts = {}
             total = 0
@@ -308,9 +248,8 @@ class FleetDetector:
             if total > 0:
                 group_counts["TOTAL"] = int(total)
                 grouped[gname] = group_counts
-
         other_cnt = max_counts.get("Other", 0)
         if other_cnt > 0:
             grouped["Other"] = {"Other": int(other_cnt), "TOTAL": int(other_cnt)}
 
-        return out_filename, grouped, max_frame_idx, max_total
+        return os.path.basename(final_mp4), grouped, max_frame_idx, max_total
