@@ -67,7 +67,7 @@ def index():
         elif ext in ALLOWED_VID:
 
             # ---------------------------------------------------
-            # NEW: Limit video duration to 30 seconds
+            # NEW: Limit video duration to 10 seconds
             # ---------------------------------------------------
             cap = cv2.VideoCapture(saved_path)
             if not cap.isOpened():
@@ -78,8 +78,8 @@ def index():
             duration = frames / fps
             cap.release()
 
-            if duration > 30.0:
-                return "Video is longer than 30 seconds", 400
+            if duration > 10.0:
+                return "Video is longer than 10 seconds", 400
             # ---------------------------------------------------
 
             # video flow - process and redirect to video result

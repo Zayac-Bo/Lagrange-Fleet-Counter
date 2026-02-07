@@ -161,7 +161,7 @@ class FleetDetector:
         w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        max_frames_allowed = int(fps * 30)  # max 30 seconds
+        max_frames_allowed = int(fps * 10)  # max 10 seconds
         frame_count = min(frame_count, max_frames_allowed)
 
         if downscale_width and downscale_width < w:
