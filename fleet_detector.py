@@ -47,6 +47,10 @@ def _rgb_to_lab(rgb):
 PALETTE_LAB = {name: _rgb_to_lab(rgb) for name, rgb in PALETTE_RGB.items()}
 PALETTE_BGR = {name: _rgb_to_bgr(rgb) for name, rgb in PALETTE_RGB.items()}
 
+# Pre-computed arrays for vectorised per-pixel palette voting
+_PALETTE_NAMES = list(PALETTE_LAB.keys())
+_PALETTE_LAB_ARR = np.array(list(PALETTE_LAB.values()), dtype=float)  # (12, 3)
+
 class FleetDetector:
     def __init__(self, model_path="weights/best.pt", output_folder=None):
         if not os.path.exists(model_path):
@@ -61,27 +65,87 @@ class FleetDetector:
         os.makedirs(self.video_out, exist_ok=True)
 
     def _dominant_bright_color(self, crop_bgr):
+        """Return dominant fleet-icon RGB using per-pixel palette voting.
+
+        Strategy:
+        1. Early-exit for "Own fleets" (white): if >=18% of crop pixels are very
+           bright (V>=220) AND near-achromatic (S<=20), the icon is white. This check
+           runs before the saturation filter so a crossing travel line cannot hijack
+           the primary path and cause white to be missed.
+        2. Saturation+brightness filter (S>=50, V>=80): remove stars (S~0) and dark
+           background (V~25). All 11 non-white palette colours clear both thresholds.
+        3. Per-pixel palette voting on the filtered pixels: each pixel independently
+           votes for whichever palette LAB colour it is nearest to (if that distance
+           is within LAB_DISTANCE_THRESHOLD). No K-means centroid blending — a pixel
+           contaminated by a yellow travel line still votes for "Lemon Yellow" rather
+           than dragging the blue cluster's centroid outside all thresholds.
+        4. Fallback (V>=180 absolute threshold): catches "Own fleets" when very few
+           coloured elements are present, and other low-saturation scenes.
+        """
         if crop_bgr is None or crop_bgr.size == 0:
-            return np.array([0,0,0], dtype=int)
-        hsv = cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2HSV).astype(float)
-        v = hsv[:, :, 2].flatten()
-        crop_rgb = cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2RGB).astype(float)
-        flat_rgb = crop_rgb.reshape(-1, 3)
-        total_pixels = flat_rgb.shape[0]
-        if total_pixels == 0:
-            return np.array([0,0,0], dtype=int)
-        thresh = np.percentile(v, 70)
-        bright_mask = v >= thresh
-        bright_count = np.count_nonzero(bright_mask)
-        bright_ratio = bright_count / float(total_pixels)
-        if bright_count > 0 and bright_ratio >= 0.30:
-            bright_pixels = flat_rgb[bright_mask]
-            mean_rgb = bright_pixels.mean(axis=0)
-            return np.array([int(round(x)) for x in mean_rgb], dtype=int)
+            return np.array([0, 0, 0], dtype=int)
+
+        # Resize to max 64×64 for speed; INTER_AREA preserves colour distribution
+        h, w = crop_bgr.shape[:2]
+        if h > 64 or w > 64:
+            scale = min(64.0 / h, 64.0 / w)
+            crop_bgr = cv2.resize(crop_bgr, None, fx=scale, fy=scale,
+                                  interpolation=cv2.INTER_AREA)
+
+        hsv = cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2HSV)
+        s_ch = hsv[:, :, 1].flatten().astype(np.float32)
+        v_ch = hsv[:, :, 2].flatten().astype(np.float32)
+        pixels_bgr = crop_bgr.reshape(-1, 3)
+        n = len(v_ch)
+
+        # --- Step 1: "Own fleets" early exit ---
+        # Stars are sparse (<10% of crop), so >=18% very-white pixels → white fleet icon.
+        white_mask = (v_ch >= 220) & (s_ch <= 20)
+        if np.count_nonzero(white_mask) / n >= 0.18:
+            mean_bgr = pixels_bgr[white_mask].astype(float).mean(axis=0)
+            return np.array([int(round(mean_bgr[2])), int(round(mean_bgr[1])),
+                             int(round(mean_bgr[0]))], dtype=int)
+
+        # --- Step 2: Saturation+brightness filter ---
+        sat_mask = (s_ch >= 50) & (v_ch >= 80)
+        sat_count = int(np.count_nonzero(sat_mask))
+
+        if sat_count >= 10:
+            # Convert filtered pixels (BGR) to LAB in one batch call
+            filtered_bgr = pixels_bgr[sat_mask].reshape(-1, 1, 3)
+            lab_px = cv2.cvtColor(filtered_bgr, cv2.COLOR_BGR2LAB).reshape(-1, 3).astype(float)
+
+            # --- Step 3: Per-pixel voting ---
+            # Distance from each filtered pixel to every palette colour: (N, 12)
+            diffs = lab_px[:, np.newaxis, :] - _PALETTE_LAB_ARR[np.newaxis, :, :]
+            dists = np.linalg.norm(diffs, axis=2)           # (N, 12)
+            nearest_idx = np.argmin(dists, axis=1)           # (N,)
+            nearest_dist = dists[np.arange(len(dists)), nearest_idx]  # (N,)
+
+            valid = nearest_dist <= LAB_DISTANCE_THRESHOLD
+            if np.any(valid):
+                votes = np.bincount(nearest_idx[valid], minlength=len(_PALETTE_NAMES))
+                best_name = _PALETTE_NAMES[int(np.argmax(votes))]
+                return np.array(list(PALETTE_RGB[best_name]), dtype=int)
+
+            # No pixel within threshold — return mean of filtered pixels so
+            # _match_palette can compute the true distance and return "Other"
+            mean_bgr = pixels_bgr[sat_mask].astype(float).mean(axis=0)
+            return np.array([int(round(mean_bgr[2])), int(round(mean_bgr[1])),
+                             int(round(mean_bgr[0]))], dtype=int)
+
+        # --- Fallback ---
+        # Handles remaining "Own fleets" crops (when sat_count < 10) and dark scenes.
+        # Absolute V threshold avoids the percentile collapsing to near-zero on dark BGs.
+        bright_mask = v_ch >= 180
+        bright_count = int(np.count_nonzero(bright_mask))
+        if bright_count >= 10:
+            mean_bgr = pixels_bgr[bright_mask].astype(float).mean(axis=0)
         else:
-            w = v.reshape(-1, 1) + 1e-6
-            weighted = (flat_rgb * w).sum(axis=0) / w.sum()
-            return np.array([int(round(x)) for x in weighted], dtype=int)
+            w = (s_ch + 1e-6).reshape(-1, 1)
+            mean_bgr = (pixels_bgr.astype(float) * w).sum(axis=0) / w.sum()
+        return np.array([int(round(mean_bgr[2])), int(round(mean_bgr[1])),
+                         int(round(mean_bgr[0]))], dtype=int)
 
     def _match_palette(self, rgb):
         lab = _rgb_to_lab(tuple(int(x) for x in rgb))
